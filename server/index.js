@@ -66,7 +66,7 @@ app.post("/login",async(req,res)=>{
         jwt.sign(payload,'jwtSecret',{expiresIn:'1h'},
             (err,token)=>{
                 if(err) throw err;
-                // res.json({token})
+                res.json({token})
             }
         )
     
