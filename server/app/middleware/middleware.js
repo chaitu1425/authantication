@@ -1,20 +1,15 @@
 const jwt = require('jsonwebtoken')
-const { model } = require('mongoose')
 
 module.exports = function(req,res,next){
     try {
-        let token = req.header("x-token");
-        if(!token){
-            return res.send('Token not found')
-        }
+        const token = req.header("x-token");
+        if(!token)return res.status(401).send('Token not found')
         
-
-        let decode = jwt.verify(token,'jwtSecret');
-        req.user = decode.user
+        const decode = jwt.verify(token, 'jwtSecret');
+        req.user = decode;
+        
         next();
-
-
     } catch (error) {
-        res.send(error)
+        res.status(400).send("Invalid Token")
     }
 }

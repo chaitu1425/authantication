@@ -1,10 +1,14 @@
 const express = require('express')
 const mongoose = require('mongoose')
-const model = require("./app/model/model_scheme.js")
+const User = require("./app/model/model_scheme.js")
 const jwt = require('jsonwebtoken')
 const middleware = require("./app/middleware/middleware.js")
+const cors = require('cors')
+const bcrypt = require('bcryptjs');
+
 const app = express();
 app.use(express.json());
+app.use(cors({origin:"*"}))
 
 mongoose.connect("mongodb://localhost:27017", {
     useUnifiedTopology: true,
@@ -19,67 +23,70 @@ app.get("/", (req, res) => {
 app.post("/register",async(req,res)=>{
     try{
         const {username,email,password,confirmPass} = req.body;
-        let exist = await model.findOne({email});
+
+        const exist = await User.findOne({ email });
         if(exist){
-            res.send('User Already Exist');
+            res.status(400).send('User Already Exist');
         }
         if(password!==confirmPass){
-            res.send('Password Not Matched');
+            res.status(400).send('Password Not Matched');
         }
-        let newUser =new model({
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const newUser =new User({
             username,
             email,
-            password,
-            confirmPass
+            password:hashedPassword,
         }) 
         let newuser = await newUser.save();
         res.send("Register Successful");
     }catch(err){
-        console.log({Error:err.errmsg})
+        console.log('Server error during registration')
     }
 })
 
 app.post("/login",async(req,res)=>{
     try{
-        const {email,password} = req.body;
+        const { email,password } = req.body;
 
-        let exist = await model.findOne({email})
+        const exist = await User.findOne({ email })
 
         if(!exist){
-            res.send("No User Found")
+           return res.status(404).send("No User Found")
         }
-        if(exist.password != password){
-            res.send("Invalid Credentials")
+        const isMatch = await bcrypt.compare(password, exist.password);
+        if(isMatch){
+           return res.status(401).send("Invalid Credentials")
         }
-        let payload = {
-            user:{
-                id:exist.id
-            }
+        const payload = {
+            id:exist._id
         }
 
-        jwt.sign(payload,'jwtSecret',{expiresIn:3600000},
+        jwt.sign(payload,'jwtSecret',{expiresIn:'1h'},
             (err,token)=>{
                 if(err) throw err;
-                return res.json({token})
+                // res.json({token})
             }
         )
     
     }catch(err){
-        console.log({Error:err.errmsg});
+        console.log("Login error:",err)
+        res.status(500).send("Server error during login");
     }
 })
 
 
 app.get('/profile',middleware,async(req,res)=>{
     try {
-        let exist = await model.findById(req.user.id)
+        const exist = await User.findById(req.user.id).select('-password')
 
         if(!exist){
             return res.send("User not found")
         }
         res.json(exist);
     } catch (error) {
-        res.send({Error:err.errmsg})
+        res.send("Error fetching profile")
     }
 })
 
